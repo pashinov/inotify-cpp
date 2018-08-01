@@ -1,6 +1,6 @@
 # Inotify-cpp #
 
-[![Build Status](https://travis-ci.org/pashinov/inotify-cpp.svg?branch=epoll)](https://travis-ci.org/pashinov/inotify-cpp) [![codecov](https://codecov.io/gh/pashinov/inotify-cpp/branch/epoll/graph/badge.svg)](https://codecov.io/gh/pashinov/inotify-cpp)
+[![Build Status](https://travis-ci.org/pashinov/inotify-cpp.svg?branch=epoll)](https://travis-ci.org/pashinov/inotify-cpp) [![codecov](https://codecov.io/gh/pashinov/inotify-cpp/branch/epoll/graph/badge.svg)](https://codecov.io/gh/pashinov/inotify-cpp/branch/epoll)
 ===========
 
 __Inotify-cpp__ is a C++ wrapper for linux inotify. It lets you watch for
