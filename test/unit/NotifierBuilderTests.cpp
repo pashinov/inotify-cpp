@@ -202,29 +202,3 @@ BOOST_FIXTURE_TEST_CASE(shouldCallUserDefinedUnexpectedExceptionObserver, Notifi
     BOOST_CHECK(observerCalled.get_future().wait_for(timeout_) == std::future_status::ready);
     thread.join();
 }
-
-BOOST_FIXTURE_TEST_CASE(shouldSetEventTimeout, NotifierBuilderTests)
-{
-    std::promise<Notification> timeoutObserved;
-    std::chrono::milliseconds timeout(100);
-
-    auto notifier
-        = BuildNotifier()
-              .watchFile(testFile_)
-              .onEvent(
-                  Event::open,
-                  [&](Notification notification) { promisedOpen_.set_value(notification); })
-              .setEventTimeout(timeout, [&](Notification notification) {
-                  timeoutObserved.set_value(notification);
-              });
-
-    std::thread thread([&notifier]() {
-        notifier.runOnce(); // open
-    });
-
-    openFile(testFile_);
-
-    BOOST_CHECK(promisedOpen_.get_future().wait_for(timeout_) == std::future_status::ready);
-    BOOST_CHECK(timeoutObserved.get_future().wait_for(timeout_) == std::future_status::ready);
-    thread.join();
-}

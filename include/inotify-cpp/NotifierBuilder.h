@@ -27,8 +27,6 @@ class NotifierBuilder {
     auto onEvent(Event event, EventObserver) -> NotifierBuilder&;
     auto onEvents(std::vector<Event> event, EventObserver) -> NotifierBuilder&;
     auto onUnexpectedEvent(EventObserver) -> NotifierBuilder&;
-    auto setEventTimeout(std::chrono::milliseconds timeout, EventObserver eventObserver)
-        -> NotifierBuilder&;
 
   private:
     std::shared_ptr<Inotify> mInotify;

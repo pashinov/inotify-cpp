@@ -3,17 +3,17 @@
 #include <string>
 #include <vector>
 
+#include <sys/epoll.h>
+
 namespace inotify {
 
 Inotify::Inotify()
     : mError(0)
-    , mEventTimeout(0)
-    , mLastEventTime(std::chrono::steady_clock::now())
     , mEventMask(IN_ALL_EVENTS)
-    , mThreadSleep(250)
     , mIgnoredDirectories(std::vector<std::string>())
     , mInotifyFd(0)
-    , mOnEventTimeout([](FileSystemEvent) {})
+    , mEpollFd(0)
+    , mEpollTimeout(1000)
 {
 
     // Initialize inotify
@@ -35,6 +35,27 @@ void Inotify::init()
         mError = errno;
         std::stringstream errorStream;
         errorStream << "Can't initialize inotify ! " << strerror(mError) << ".";
+        throw std::runtime_error(errorStream.str());
+    }
+
+    mEpollFd = epoll_create1(0);
+    if (mEpollFd == -1) {
+        mError = errno;
+        std::stringstream errorStream;
+        errorStream << "Can't initialize epoll ! " << strerror(mError) << ".";
+        throw std::runtime_error(errorStream.str());
+    }
+
+    struct epoll_event event;
+    event.data.fd = mInotifyFd;
+    event.events = EPOLLIN;
+
+    int ret;
+    ret = epoll_ctl(mEpollFd, EPOLL_CTL_ADD, mInotifyFd, &event);
+    if (ret) {
+        mError = errno;
+        std::stringstream errorStream;
+        errorStream << "Can't initialize epoll ! " << strerror(mError) << ".";
         throw std::runtime_error(errorStream.str());
     }
 }
@@ -162,13 +183,6 @@ uint32_t Inotify::getEventMask()
     return mEventMask;
 }
 
-void Inotify::setEventTimeout(
-    std::chrono::milliseconds eventTimeout, std::function<void(FileSystemEvent)> onEventTimeout)
-{
-    mEventTimeout = eventTimeout;
-    mOnEventTimeout = onEventTimeout;
-}
-
 /**
  * @brief Blocking wait on new events of watched files/directories
  *        specified on the eventmask. FileSystemEvents
@@ -183,21 +197,24 @@ boost::optional<FileSystemEvent> Inotify::getNextEvent()
 {
     int length = 0;
     char buffer[EVENT_BUF_LEN];
-    std::chrono::steady_clock::time_point currentEventTime;
     std::vector<FileSystemEvent> events;
 
     // Read Events from fd into buffer
     while (mEventQueue.empty()) {
         length = 0;
         memset(buffer, '\0', sizeof(buffer));
-        while (length <= 0 && !stopped) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(mThreadSleep));
 
-            length = read(mInotifyFd, buffer, EVENT_BUF_LEN);
-            if (length == -1) {
-                mError = errno;
-                if (mError != EINTR) {
-                    continue;
+        while (length <= 0 && !stopped) {
+            struct epoll_event epoll_events[MAX_EVENTS];
+            int count_events = epoll_wait(mEpollFd, epoll_events, MAX_EVENTS, mEpollTimeout);
+
+            if (count_events > 0) {
+                length = read(mInotifyFd, buffer, EVENT_BUF_LEN);
+                if (length == -1) {
+                    mError = errno;
+                    if (mError != EINTR) {
+                        continue;
+                    }
                 }
             }
         }
@@ -207,7 +224,6 @@ boost::optional<FileSystemEvent> Inotify::getNextEvent()
         }
 
         // Read events from buffer into queue
-        currentEventTime = std::chrono::steady_clock::now();
         int i = 0;
         while (i < length) {
             inotify_event* event = ((struct inotify_event*)&buffer[i]);
@@ -238,14 +254,9 @@ boost::optional<FileSystemEvent> Inotify::getNextEvent()
         // Filter events
         for (auto eventIt = events.begin(); eventIt < events.end(); ++eventIt) {
             FileSystemEvent currentEvent = *eventIt;
-            if (onTimeout(currentEventTime)) {
-                events.erase(eventIt);
-                mOnEventTimeout(currentEvent);
-
-            } else if (isIgnored(currentEvent.path.string())) {
+            if (isIgnored(currentEvent.path.string())) {
                 events.erase(eventIt);
             } else {
-                mLastEventTime = currentEventTime;
                 mEventQueue.push(currentEvent);
             }
         }
@@ -285,10 +296,5 @@ bool Inotify::isIgnored(std::string file)
     }
 
     return false;
-}
-
-bool Inotify::onTimeout(const std::chrono::steady_clock::time_point& eventTime)
-{
-    return std::chrono::duration_cast<std::chrono::milliseconds>(eventTime - mLastEventTime) < mEventTimeout;
 }
 }

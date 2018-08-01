@@ -66,21 +66,6 @@ auto NotifierBuilder::onUnexpectedEvent(EventObserver eventObserver) -> Notifier
     return *this;
 }
 
-auto NotifierBuilder::setEventTimeout(
-    std::chrono::milliseconds timeout, EventObserver eventObserver) -> NotifierBuilder&
-{
-    auto onEventTimeout = [eventObserver](FileSystemEvent fileSystemEvent) {
-
-        Notification notification;
-        notification.path = fileSystemEvent.path;
-        notification.event = static_cast<Event>(fileSystemEvent.mask);
-        eventObserver(notification);
-    };
-
-    mInotify->setEventTimeout(timeout, onEventTimeout);
-    return *this;
-}
-
 auto NotifierBuilder::runOnce() -> void
 {
     auto fileSystemEvent = mInotify->getNextEvent();

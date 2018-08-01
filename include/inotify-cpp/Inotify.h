@@ -81,7 +81,6 @@ class Inotify {
   void ignoreFile(fs::path file);
   void setEventMask(uint32_t eventMask);
   uint32_t getEventMask();
-  void setEventTimeout(std::chrono::milliseconds eventTimeout, std::function<void(FileSystemEvent)> onEventTimeout);
   boost::optional<FileSystemEvent> getNextEvent();
   void stop();
   bool hasStopped();
@@ -89,22 +88,19 @@ class Inotify {
 private:
   fs::path wdToPath(int wd);
   bool isIgnored(std::string file);
-  bool onTimeout(const std::chrono::steady_clock::time_point& eventTime);
   void removeWatch(int wd);
   void init();
 
   // Member
   int mError;
-  std::chrono::milliseconds mEventTimeout;
-  std::chrono::steady_clock::time_point mLastEventTime;
   uint32_t mEventMask;
-  uint32_t mThreadSleep;
   std::vector<std::string> mIgnoredDirectories;
   std::vector<std::string> mOnceIgnoredDirectories;
   std::queue<FileSystemEvent> mEventQueue;
   boost::bimap<int, fs::path> mDirectorieMap;
   int mInotifyFd;
   std::atomic<bool> stopped;
-  std::function<void(FileSystemEvent)> mOnEventTimeout;
+  int mEpollFd;
+  uint32_t mEpollTimeout; // milliseconds
 };
 }
